@@ -4,6 +4,8 @@ const typesenseClient = require("./typesense");
 const fs = require('fs/promises');
 const { connect, getDb } = require("./mongodb");
 
+app.use(express.json());
+
 
 app.get("/", (req, res) => {
     return res.json({
@@ -50,22 +52,71 @@ app.post("/import-data", async (req, res) => {
 })
 
 
-app.get("/search", async (req, res) => {
+app.post("/search", async (req, res) => {
     try {
-        let searchParameters = {
-            'q': req.query.search,
-            'query_by': "name,keywords",
-            "facet_by": "keywords",
-            'sort_by': 'price:desc'
+
+        let filterQuery = "";
+
+        let searchParameters;
+
+        const filterArr = [];
+
+        // console.log(req.body)
+
+
+        if (req.body.keywords || req.body.brand) {
+
+            for (const property in req.body) {
+                filterArr.push(`${property}:[${req.body[property]}]`)
+            }
+
+            filterQuery = filterArr.join("&&")
+
+            searchParameters = {
+                'q': req.query.search,
+                'query_by': "name,keywords",
+                "facet_by": "keywords,brand",
+                "filter_by": `${filterQuery}`,
+                'sort_by': 'price:desc'
+            }
+        } else {
+            searchParameters = {
+                'q': req.query.search,
+                'query_by': "name,keywords",
+                "facet_by": "keywords,brand",
+                'sort_by': 'price:desc'
+            }
         }
 
-        const books = await typesenseClient.collections('products')
+        // console.log(searchParameters)
+
+        const productsDoc = await typesenseClient.collections('products')
             .documents()
             .search(searchParameters)
 
+
+        const products = [];
+
+        const facets = [];
+
+        for (let i = 0; i < productsDoc.hits.length; i++) {
+            products.push(productsDoc.hits[i]?.document)
+        }
+        for (let i = 0; i < productsDoc.facet_counts.length; i++) {
+            facets.push(productsDoc.facet_counts[i]?.counts)
+        }
+
         return res.json({
             success: true,
-            data: books
+            total: productsDoc.found,
+            products: products,
+            facets: {
+                keywords: facets[0] ?? [],
+                brands: facets[1] ?? [],
+                categories: facets[2] ?? []
+            },
+
+
         })
     } catch (error) {
         return res.json({
@@ -106,6 +157,11 @@ app.post("/import-products-to-typesense", async (req, res) => {
             {
                 "name": "price",
                 "type": "int32"
+            },
+            {
+                "name": "brand",
+                "type": "string",
+                "facet": true
             }
         ],
         'default_sorting_filed': "price"
@@ -118,12 +174,23 @@ app.post("/import-products-to-typesense", async (req, res) => {
     const productDb = await getDb();
     const mongoProducts = await productDb.collection("products").aggregate([
         {
+            $lookup: {
+                from: "brands",
+                localField: "brand",
+                foreignField: "_id",
+                as: "brand"
+            }
+        },
+        {
             $project: {
                 name: 1,
                 keywords: {
                     $split: ["$name", " "]
                 },
-                price: "$pricing.price"
+                price: "$pricing.price",
+                brand: {
+                    $first: "$brand.name"
+                }
             }
         },
         {
@@ -142,11 +209,38 @@ app.post("/import-products-to-typesense", async (req, res) => {
 
     res.json({
         success: true,
-        message: "Products are imported"
+        message: "Products are imported",
+        data: mongoProducts
     })
 
 })
 
+
+app.get("/get-single-typesense-product/:id", async (req, res) => {
+    const product = await typesenseClient.collections("products").documents(req.params.id).retrieve()
+    return res.json({
+        success: true,
+        data: product
+    })
+})
+
+
+app.put("/update-typesense-document/:id", async (req, res) => {
+    const product = await typesenseClient.collections("products").documents(req.params.id).update(req.body);
+    return res.json({
+        success: true,
+        data: product
+    })
+})
+
+
+app.post("/insert-typesense-document", async (req, res) => {
+    const product = await typesenseClient.collections("products").documents().create(req.body);
+    return res.json({
+        success: true,
+        data: product
+    })
+})
 
 
 app.listen(5000, async () => {

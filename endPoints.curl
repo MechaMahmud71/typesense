@@ -26,4 +26,9 @@ GET->search-books
 curl -X GET "http://localhost:5000/search"
 
 
+curl -X GET "http://localhost:5000/get-single-typesense-product/8"
+
+
 curl -X POST "http://localhost:5000/import-products-to-typesenseimport-products-to-typesense"
+
+curl -X POST "http://localhost:5000/insert-typesense-document" -H "Content-Type:application/json" -d '{"_id": "62af05b060c616b6efe4f11e","brand": "Oldtown","keywords": ["OLDTOWN","White","Coffee","Classic","570g"],"name": "Faruk Products","price": 980}'
