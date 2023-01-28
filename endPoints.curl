@@ -1,0 +1,29 @@
+Check the server status
+curl -X GET "http://localhost:5000"  
+
+Create a schema
+
+POST-> create-schema
+
+curl -X POST "http://localhost:5000/create-schema"
+
+
+DELETE-> delete-schema
+
+
+curl -X DELETE "http://localhost:5000/delete-schema"
+
+import all books data
+POST->import-data
+
+curl -X POST "http://localhost:5000/import-data"
+
+
+search books
+
+GET->search-books
+
+curl -X GET "http://localhost:5000/search"
+
+
+curl -X POST "http://localhost:5000/import-products-to-typesenseimport-products-to-typesense"
